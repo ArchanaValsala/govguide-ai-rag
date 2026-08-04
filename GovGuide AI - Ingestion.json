@@ -1,0 +1,204 @@
+{
+  "name": "GovGuide AI - Ingestion",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -976,
+        -64
+      ],
+      "id": "e3b06eda-486f-44b0-bd21-9cf152b6375e",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "fileSelector": "/files/data/raw/*.md",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1.1,
+      "position": [
+        -768,
+        -64
+      ],
+      "id": "54ff713e-c63e-4b8a-9755-e2ea9affc85a",
+      "name": "Read/Write Files from Disk"
+    },
+    {
+      "parameters": {
+        "jsCode": "const inputItems = $input.all();\nconst chunks = [];\n\nfor (const inputItem of inputItems) {\n  const markdown = inputItem.json.markdown;\n\n  if (!markdown) {\n    throw new Error('No markdown content found.');\n  }\n\n  const frontMatterMatch = markdown.match(\n    /^---\\s*\\n([\\s\\S]*?)\\n---\\s*\\n?/\n  );\n\n  if (!frontMatterMatch) {\n    throw new Error(\n      `No YAML front matter found in ${inputItem.json.fileName ?? 'unknown file'}`\n    );\n  }\n\n  const metadata = {};\n\n  for (const line of frontMatterMatch[1].split('\\n')) {\n    const separatorIndex = line.indexOf(':');\n\n    if (separatorIndex === -1) continue;\n\n    const key = line.slice(0, separatorIndex).trim();\n    const value = line.slice(separatorIndex + 1).trim();\n\n    metadata[key] = value;\n  }\n\n  const body = markdown\n    .replace(frontMatterMatch[0], '')\n    .trim();\n\n  const sections = body\n    .split(/(?=^#{1,3}\\s+)/gm)\n    .map(section => section.trim())\n    .filter(Boolean);\n\n  let chunkIndex = 0;\n\n  const addChunk = content => {\n    chunks.push({\n      json: {\n        source_id: metadata.source_id,\n        organisation: metadata.organisation,\n        topic: metadata.topic,\n        source_title: metadata.source_title,\n        source_url: metadata.source_url,\n        language: metadata.language,\n        status: metadata.status,\n        retrieved_at: metadata.retrieved_at,\n        last_verified: metadata.last_verified,\n        chunk_index: chunkIndex,\n        content,\n      },\n    });\n\n    chunkIndex++;\n  };\n\n  for (const section of sections) {\n    if (section.length <= 900) {\n      addChunk(section);\n      continue;\n    }\n\n    const paragraphs = section\n      .split(/\\n\\s*\\n/)\n      .map(paragraph => paragraph.trim())\n      .filter(Boolean);\n\n    let currentChunk = '';\n\n    for (const paragraph of paragraphs) {\n      const proposedChunk = currentChunk\n        ? `${currentChunk}\\n\\n${paragraph}`\n        : paragraph;\n\n      if (proposedChunk.length > 900 && currentChunk) {\n        addChunk(currentChunk);\n        currentChunk = paragraph;\n      } else {\n        currentChunk = proposedChunk;\n      }\n    }\n\n    if (currentChunk) {\n      addChunk(currentChunk);\n    }\n  }\n}\n\nreturn chunks;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -400,
+        -64
+      ],
+      "id": "75388ce6-95f2-49a0-b7e8-b52b75fbb840",
+      "name": "Parse Metadata and Chunk"
+    },
+    {
+      "parameters": {
+        "jsCode": "const inputItems = $input.all();\nconst results = [];\n\nfor (let index = 0; index < inputItems.length; index++) {\n  const buffer = await this.helpers.getBinaryDataBuffer(index, 'data');\n  const markdown = buffer.toString('utf8');\n\n  const binaryInfo = inputItems[index].binary?.data;\n\n  results.push({\n    json: {\n      fileName: binaryInfo?.fileName ?? `file-${index}.md`,\n      mimeType: binaryInfo?.mimeType ?? 'text/markdown',\n      markdown,\n    },\n  });\n}\n\nreturn results;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -576,
+        -64
+      ],
+      "id": "20818407-c665-4a9f-95a0-6e1b7032741f",
+      "name": "Read Markdown as Text"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:11434/api/embed",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  model: \"nomic-embed-text-v2-moe\",\n  input:\n    \"search_document: \" +\n    \"Title: \" + $json.source_title + \"\\n\" +\n    \"Topic: \" + $json.topic + \"\\n\" +\n    \"Content: \" + $json.content\n}) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -192,
+        -64
+      ],
+      "id": "58052dc6-0ebf-4c28-abbd-08c6daaecda2",
+      "name": "Generate Embedding — Ollama"
+    },
+    {
+      "parameters": {
+        "jsCode": "const embeddingItems = $input.all();\nconst chunkItems = $('Parse Metadata and Chunk').all();\n\nif (embeddingItems.length !== chunkItems.length) {\n  throw new Error(\n    `Item count mismatch: ${embeddingItems.length} embeddings and ${chunkItems.length} chunks`\n  );\n}\n\nreturn embeddingItems.map((embeddingItem, index) => {\n  const chunk = chunkItems[index].json;\n  const embedding = embeddingItem.json.embeddings?.[0];\n\n  if (!Array.isArray(embedding) || embedding.length !== 768) {\n    throw new Error(`Invalid embedding for chunk ${index}`);\n  }\n\n  return {\n    json: {\n      ...chunk,\n      embedding,\n    },\n  };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        16,
+        -64
+      ],
+      "id": "2c8351ab-2405-4979-982b-1137d7ba6402",
+      "name": "Combine Metadata and Embedding"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://gkpozhlhlkjitpcawdmh.supabase.co/rest/v1/document_chunks",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "SUPABASE_SECRET_KEY"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer SUPABASE_SECRET_KEY"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  source_id: $json.source_id,\n  organisation: $json.organisation,\n  topic: $json.topic,\n  source_title: $json.source_title,\n  source_url: $json.source_url,\n  language: $json.language,\n  status: $json.status,\n  chunk_index: $json.chunk_index,\n  content: $json.content,\n  embedding: $json.embedding,\n  retrieved_at: $json.retrieved_at,\n  last_verified: $json.last_verified\n}) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        240,
+        -64
+      ],
+      "id": "9569d3d1-f27d-4727-a3e5-6af816390d97",
+      "name": "Insert Chunks into Supabase"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "Read/Write Files from Disk",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read/Write Files from Disk": {
+      "main": [
+        [
+          {
+            "node": "Read Markdown as Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Markdown as Text": {
+      "main": [
+        [
+          {
+            "node": "Parse Metadata and Chunk",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Metadata and Chunk": {
+      "main": [
+        [
+          {
+            "node": "Generate Embedding — Ollama",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Embedding — Ollama": {
+      "main": [
+        [
+          {
+            "node": "Combine Metadata and Embedding",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Combine Metadata and Embedding": {
+      "main": [
+        [
+          {
+            "node": "Insert Chunks into Supabase",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "4ac0cb84-4cc0-4bd1-b6e0-62c681f76eaf",
+  "meta": {
+    "instanceId": "6d9c4cc93006621a58cb42a75f3347c06094fae1640fbd13023a9819be5d81e7"
+  },
+  "nodeGroups": [],
+  "id": "yls4kfn7XoPsVVIy",
+  "tags": []
+}
