@@ -11,8 +11,10 @@ It combines n8n, Ollama, Supabase PostgreSQL, pgvector, and a browser-based chat
 ## Final Webpage Demo
 ### Initial Chat Interface
 <img width="1102" height="740" alt="image" src="https://github.com/user-attachments/assets/c9ad118c-cc91-4500-a57f-332e22f9533b" />
+
 ### Grounded Answer with Official Source
 <img width="1102" height="740" alt="image" src="https://github.com/user-attachments/assets/8e3ba036-0502-4562-93b5-1cb309561252" />
+
 ### Follow-up Question
 <img width="1102" height="740" alt="image" src="https://github.com/user-attachments/assets/7f2da2cf-02f0-40b6-a7f7-99aaedbbdb23" />
 
