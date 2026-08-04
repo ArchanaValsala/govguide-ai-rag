@@ -4,6 +4,11 @@ GovGuide AI is a local Retrieval-Augmented Generation application (personal proj
 
 It combines n8n, Ollama, Supabase PostgreSQL, pgvector, and a browser-based chat interface.
 
+## 🎥 Demo Video
+
+Watch the full project demo on Google Drive
+https://drive.google.com/file/d/1p5v70ulnZIuUx_WdWryy7KwFfvoTHLiV/view?usp=sharing
+
 ## Demo
 
 <img width="1102" height="740" alt="image" src="https://github.com/user-attachments/assets/c9ad118c-cc91-4500-a57f-332e22f9533b" />
