@@ -1,0 +1,16 @@
+question_id,question,expected_topic,expected_source_id,expected_route,notes
+Q001,My income increased this year. Should I update my allowance?,income_change,TOE-001,report_change,Should retrieve income-change guidance
+Q002,Why do I have to repay my zorgtoeslag?,repayment,TOE-003,explain_repayment,Should explain that allowances are advances and actual income or household changes can cause repayment
+Q003,I cannot repay the full amount in one payment. What can I do?,payment_arrangement,TOE-004,standard_payment_arrangement,Should recommend instalments rather than objection
+Q004,I cannot afford to repay the amount within 24 months.,payment_arrangement,TOE-004,personal_payment_arrangement,Should retrieve personal payment-arrangement guidance
+Q005,I think my definitive calculation uses the wrong income. What should I do?,objection,TOE-005,possible_objection,Should retrieve objection guidance
+Q006,How long do I have to object to a definitive calculation?,objection,TOE-005,possible_objection,Expected answer should mention the 6-week period
+Q007,I missed the 6-week objection deadline. Is there another option?,review_request,TOE-006,review_request,Should retrieve the review-request route
+Q008,What information should I include in a review request?,review_request,TOE-006,review_request,Should retrieve required information and supporting documents
+Q009,What is a definitive calculation and what does it show?,definitive_calculation,TOE-002,explain_definitive_calculation,Should explain final entitlement provisional payments and possible repayment
+Q010,Can a definitive calculation change later if new income information becomes available?,definitive_calculation,TOE-002,new_definitive_calculation,Should retrieve the section about new information
+Q011,Someone moved in with me. Could that be why I have to repay allowance?,repayment,TOE-003,explain_repayment,Should retrieve household-change guidance
+Q012,I agree with the calculation but I cannot afford the payment.,payment_arrangement,TOE-004,payment_arrangement,Should not recommend objection
+Q013,I received a letter but I do not know whether it is a definitive calculation or another decision.,document_classification,,request_clarification,System should ask for the document type instead of guessing
+Q014,Can I send my objection by email?,objection,TOE-005,possible_objection,Should explain that the form must be printed and sent by post
+Q015,How long does Dienst Toeslagen take to decide on a review request?,review_request,TOE-006,review_request,Expected answer should mention 8 weeks and possible 6-week extension

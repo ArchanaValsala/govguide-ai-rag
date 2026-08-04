@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+  >
+
+  <meta
+    name="description"
+    content="GovGuide AI provides grounded guidance about Dutch allowances using official Dienst Toeslagen sources."
+  >
+
+  <title>GovGuide AI</title>
+
+  <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+  <main class="page-shell">
+    <section class="chat-app" aria-labelledby="appTitle">
+
+      <header class="app-header">
+        <div class="brand-content">
+          <p class="eyebrow">Official-source allowance guidance</p>
+
+          <h1 id="appTitle">GovGuide AI</h1>
+
+          <p class="subtitle">
+            Ask clear questions about Dutch allowances, repayments,
+            payment arrangements, objections, and review requests.
+          </p>
+        </div>
+      </header>
+
+      <section class="topic-strip" aria-label="Supported topics">
+        <span>Income changes</span>
+        <span>Calculations</span>
+        <span>Repayments</span>
+        <span>Payment plans</span>
+        <span>Objections</span>
+        <span>Reviews</span>
+      </section>
+
+      <section
+        id="chatMessages"
+        class="chat-messages"
+        aria-live="polite"
+        aria-label="Conversation"
+      >
+        <article class="message assistant-message">
+          <div class="message-content">
+            <p class="message-label">GovGuide AI</p>
+
+            <div class="message-bubble">
+              <p>
+                Hello. Ask me a question about Dutch allowances,
+                and I will answer using the available official sources.
+              </p>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <section class="composer-section">
+        <div class="composer-heading">
+          <div>
+            <p id="composerLabel" class="composer-label">
+              Ask a question
+            </p>
+
+           <p id="composerHelp" class="composer-help">
+             Be specific for the most relevant answer.
+           </p>
+          </div>
+        </div>
+
+        <form id="chatForm" class="chat-form">
+          <label for="questionInput" class="sr-only">
+            Enter your question
+          </label>
+
+          <textarea
+            id="questionInput"
+            name="question"
+            rows="4"
+            minlength="5"
+            maxlength="1000"
+            placeholder="For example: Why do I have to repay part of my allowance?"
+            autocomplete="off"
+            required
+          ></textarea>
+
+          <div class="form-footer">
+            <span
+              id="characterCount"
+              class="character-count"
+              aria-live="polite"
+            >
+              0 / 1000
+            </span>
+
+            <button id="sendButton" type="submit">
+              <span>Send question</span>
+
+              <span class="button-arrow" aria-hidden="true">
+                →
+              </span>
+            </button>
+          </div>
+        </form>
+
+        <p class="disclaimer">
+          GovGuide AI provides procedural guidance based on selected
+          official sources. It does not provide legal or financial advice.
+        </p>
+      </section>
+
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
