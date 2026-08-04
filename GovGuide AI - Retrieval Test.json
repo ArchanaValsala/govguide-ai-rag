@@ -1,0 +1,692 @@
+{
+  "name": "GovGuide AI - Retrieval Test",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -816,
+        128
+      ],
+      "id": "d8cfa82d-75de-4d32-987e-ff46025d4afb",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "979989fa-eb0b-4998-b82e-81a9a94ce651",
+              "name": "question",
+              "value": "How is the definitive calculation of my allowance determined?",
+              "type": "string"
+            },
+            {
+              "id": "446f0673-1019-47ec-bbf4-40fee4cb460d",
+              "name": "expected_topic",
+              "value": "definitive_calculation",
+              "type": "string"
+            },
+            {
+              "id": "82d41174-9181-46a2-90ea-37c0ea49168e",
+              "name": "expected_source_id",
+              "value": "TOE-002",
+              "type": "string"
+            },
+            {
+              "id": "3e0be812-90ed-4a59-b823-8c93551eddbb",
+              "name": "test_case_id",
+              "value": "EVAL-003",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        -656,
+        -96
+      ],
+      "id": "9cc62cc7-decb-4822-a33f-707b9156b378",
+      "name": "Test Question"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:11434/api/embed",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  model: \"nomic-embed-text-v2-moe\",\n  input: \"search_query: \" + ($json.search_question || $json.question)\n}) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -336,
+        -208
+      ],
+      "id": "0cea4e7d-fa9c-40e0-9150-f4d78ead3a8a",
+      "name": "Generate Query Embedding — Ollama"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://gkpozhlhlkjitpcawdmh.supabase.co/rest/v1/rpc/match_document_chunks",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "SUPABASE_SECRET_KEY"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer SUPABASE_SECRET_KEY"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "=json",
+        "bodyParameters": {
+          "parameters": [
+            {}
+          ]
+        },
+        "jsonBody": "={{ JSON.stringify({\n  query_embedding: $json.embeddings[0],\n  match_threshold: 0,\n  match_count: 2,\n  filter_topic: $('Classify Topic').first().json.topic\n}) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -80,
+        -208
+      ],
+      "id": "3ee16e35-b1ea-49a4-a45b-57848c6e7869",
+      "name": "Search Supabase Vector DB",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const originalQuestion = String(\n  $json.question ?? $json.Question ?? ''\n).trim();\n\nconst history = Array.isArray($json.history)\n  ? $json.history\n      .filter(\n        (message) =>\n          message &&\n          typeof message.content === 'string' &&\n          ['user', 'assistant'].includes(message.role)\n      )\n      .slice(-6)\n  : [];\n\n/*\n * The frontend may include the current question as the final history item.\n * Remove that duplicate before looking for earlier conversation context.\n */\nconst previousHistory = [...history];\n\nconst lastHistoryMessage =\n  previousHistory[previousHistory.length - 1];\n\nif (\n  lastHistoryMessage?.role === 'user' &&\n  lastHistoryMessage.content.trim() === originalQuestion\n) {\n  previousHistory.pop();\n}\n\n/*\n * Keep all earlier user messages in reverse order.\n * This allows the classifier to skip vague messages such as\n * \"How to contact?\" and continue backward until it finds\n * a message with a recognizable topic.\n */\nconst previousUserMessages = [...previousHistory]\n  .reverse()\n  .filter((message) => message.role === 'user');\n\nconst previousAssistantMessage = [...previousHistory]\n  .reverse()\n  .find((message) => message.role === 'assistant');\n\nconst previousAssistantAnswer =\n  previousAssistantMessage?.content?.trim() ?? '';\n\nfunction classifyTopic(input) {\n  const question = String(input ?? '').toLowerCase();\n\n  let topic = null;\n\n  // 1. Payment arrangement must come before repayment,\n  // because phrases such as \"cannot repay\" contain the word \"repay\".\n  if (\n    question.includes('one payment') ||\n    question.includes('single payment') ||\n    question.includes('cannot repay') ||\n    question.includes(\"can't repay\") ||\n    question.includes('can not repay') ||\n    question.includes('unable to repay') ||\n    question.includes('cannot pay') ||\n    question.includes(\"can't pay\") ||\n    question.includes('payment arrangement') ||\n    question.includes('personal payment arrangement') ||\n    question.includes('pay in instalments') ||\n    question.includes('pay in installments') ||\n    question.includes('pay monthly') ||\n    question.includes('monthly payment') ||\n    question.includes('spread the payment') ||\n    question.includes('24 months') ||\n    question.includes('betalingsregeling')\n  ) {\n    topic = 'payment_arrangement';\n\n  // 2. Repayment\n  } else if (\n    question.includes('why do i have to repay') ||\n    question.includes('why must i repay') ||\n    question.includes('why should i repay') ||\n    question.includes('repay part') ||\n    question.includes('repay my allowance') ||\n    question.includes('pay back') ||\n    question.includes('paid too much') ||\n    question.includes('received too much') ||\n    question.includes('owe money') ||\n    question.includes('terugbetalen')\n  ) {\n    topic = 'repayment';\n\n  // 3. Objection\n  } else if (\n    question.includes('objection') ||\n    /\\bobject\\b/.test(question) ||\n    question.includes('disagree') ||\n    question.includes('challenge the decision') ||\n    question.includes('appeal the decision') ||\n    question.includes('bezwaar')\n  ) {\n    topic = 'objection';\n\n  // 4. Review request\n  } else if (\n    question.includes('review request') ||\n    question.includes('request a review') ||\n    question.includes('ask for a review') ||\n    question.includes('decision to be reviewed') ||\n    question.includes('decision reviewed') ||\n    question.includes('review the decision') ||\n    question.includes('reconsider') ||\n    question.includes('reconsideration') ||\n    question.includes('herzien') ||\n    question.includes('herziening')\n  ) {\n    topic = 'review_request';\n\n  // 5. Definitive calculation\n  } else if (\n    question.includes('definitive calculation') ||\n    question.includes('final calculation') ||\n    question.includes('definitive assessment') ||\n    question.includes('final assessment') ||\n    question.includes('how is my allowance calculated') ||\n    question.includes('how is the allowance calculated') ||\n    question.includes('how is my allowance determined') ||\n    question.includes('definitieve berekening')\n  ) {\n    topic = 'definitive_calculation';\n\n  // 6. Income change\n  } else if (\n    question.includes('income changed') ||\n    question.includes('income has changed') ||\n    question.includes('change in income') ||\n    question.includes('report my income') ||\n    question.includes('report income') ||\n    question.includes('income increase') ||\n    question.includes('income increased') ||\n    question.includes('income decreased') ||\n    question.includes('income decrease') ||\n    question.includes('new income') ||\n    question.includes('salary changed') ||\n    question.includes('inkomen veranderd') ||\n    question.includes('inkomenswijziging')\n  ) {\n    topic = 'income_change';\n  }\n\n  return topic;\n}\n\n/*\n * First classify the current question by itself.\n * This allows a follow-up to move to a different topic, such as:\n * \"What if I cannot pay it?\" → payment_arrangement\n */\nlet topic = classifyTopic(originalQuestion);\n\nlet usedConversationContext = false;\nlet previousUserQuestion = '';\n\n/*\n * When the current question is vague, search backward through\n * earlier user messages until a recognizable topic is found.\n */\nif (!topic) {\n  for (const message of previousUserMessages) {\n    const candidateQuestion = message.content.trim();\n    const candidateTopic = classifyTopic(candidateQuestion);\n\n    if (candidateTopic) {\n      topic = candidateTopic;\n      previousUserQuestion = candidateQuestion;\n      usedConversationContext = true;\n      break;\n    }\n  }\n}\n\n/*\n * Build a clearer query for vector retrieval.\n *\n * The public question remains unchanged, but a vague follow-up such as\n * \"What is the phone number?\" becomes:\n *\n * Previous question: ...\n * Follow-up question: What is the phone number?\n */\nconst searchQuestion =\n  usedConversationContext && previousUserQuestion\n    ? `Previous question: ${previousUserQuestion}\\nFollow-up question: ${originalQuestion}`\n    : originalQuestion;\n\nreturn {\n  json: {\n    ...$json,\n    question: originalQuestion,\n    history,\n    topic,\n    search_question: searchQuestion,\n    conversation_context: {\n      previous_user_question: previousUserQuestion,\n      previous_assistant_answer: previousAssistantAnswer,\n      used_for_topic: usedConversationContext,\n    },\n  },\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -512,
+        112
+      ],
+      "id": "772450ab-9ebd-4b6a-a227-e47a319278fc",
+      "name": "Classify Topic"
+    },
+    {
+      "parameters": {
+        "jsCode": "const results = $input.all();\n\nconst classified = $('Classify Topic').first().json;\n\nconst history = Array.isArray(classified.history)\n  ? classified.history\n  : [];\n\nconst context = results\n  .map((item, index) => {\n    const row = item.json;\n\n    return [\n      `Source ${index + 1}`,\n      `Title: ${row.source_title}`,\n      `Topic: ${row.topic}`,\n      `URL: ${row.source_url}`,\n      `Content: ${row.content}`,\n    ].join('\\n');\n  })\n  .join('\\n\\n---\\n\\n');\n\nreturn [\n  {\n    json: {\n      question: classified.question,\n      topic: classified.topic,\n      search_question:\n        classified.search_question || classified.question,\n      history,\n      conversation_context:\n        classified.conversation_context || {\n          previous_user_question: '',\n          previous_assistant_answer: '',\n          used_for_topic: false,\n        },\n      context,\n      sources: results.map((item) => ({\n        source_id: item.json.source_id,\n        source_title: item.json.source_title,\n        source_url: item.json.source_url,\n        similarity: item.json.similarity,\n      })),\n    },\n  },\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        144,
+        -208
+      ],
+      "id": "f65b3769-32d3-49ea-aaba-106d2b985fd3",
+      "name": "Build Answer Context"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:11434/api/chat",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ (() => {\n  const question = String($json.question || '').trim();\n\n  const history = Array.isArray($json.history)\n    ? $json.history\n        .filter(message =>\n          message &&\n          typeof message.content === 'string' &&\n          ['user', 'assistant'].includes(message.role)\n        )\n        .slice(-6)\n    : [];\n\n  /*\n   * The frontend currently adds the new user question to history\n   * before sending the request. Remove that duplicate here.\n   */\n  if (\n    history.length > 0 &&\n    history[history.length - 1].role === 'user' &&\n    history[history.length - 1].content.trim() === question\n  ) {\n    history.pop();\n  }\n\n  const conversationText = history.length > 0\n    ? history\n        .map(message => {\n          const speaker =\n            message.role === 'user'\n              ? 'User'\n              : 'GovGuide AI';\n\n          return `${speaker}: ${message.content.trim()}`;\n        })\n        .join('\\n\\n')\n    : 'No previous conversation.';\n\n  return JSON.stringify({\n    model: \"qwen2.5:3b-instruct\",\n    stream: false,\n    keep_alive: \"30m\",\n    options: {\n      temperature: 0.2,\n      num_predict: 180,\n      num_ctx: 4096\n    },\n    messages: [\n      {\n        role: \"system\",\n        content: [\n          \"You are GovGuide AI.\",\n          \"Return only the final answer.\",\n          \"Do not describe your reasoning or review the sources aloud.\",\n          \"Answer only in English.\",\n          \"Use conversation history only to understand references and follow-up questions.\",\n          \"Do not treat conversation history as an authoritative factual source.\",\n          \"Use only the official source context provided for factual claims.\",\n          \"Only state facts that are explicitly present in the provided context.\",\n          \"Do not infer legal effects, payment consequences, eligibility, exceptions, or procedures that are not clearly stated.\",\n          \"Do not invent facts, deadlines, amounts, conditions, or procedures.\",\n          \"When a claim is uncertain or unsupported, omit it.\",\n          \"Answer the current question, not the earlier question.\",\n          \"Answer the current question in the first sentence.\",\n          \"If the requested detail is not present in the official source context, say that clearly and briefly.\",\n          \"Do not repeat unrelated details from earlier answers.\",\n          \"Give a direct practical answer in no more than three short paragraphs.\",\n          \"Do not include a Sources section or any URLs in the answer. Source URLs are returned separately by the API.\"\n        ].join(\"\\n\")\n      },\n      {\n        role: \"user\",\n        content:\n          \"Recent conversation:\\n\" +\n          conversationText +\n          \"\\n\\nCurrent question:\\n\" +\n          question +\n          \"\\n\\nOfficial source context:\\n\" +\n          $json.context\n      }\n    ]\n  });\n})() }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        400,
+        -208
+      ],
+      "id": "d47da958-0a4b-476f-8e2c-60efc7e78341",
+      "name": "Generate Final Answer — Ollama",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const rawAnswer = String($json.message?.content ?? '').trim();\n\nif (!rawAnswer) {\n  throw new Error('Ollama did not return an answer in message.content');\n}\n\nconst contextData = $('Build Answer Context').first().json;\n\n// Remove explicit thinking tags if present.\nlet answer = rawAnswer\n  .replace(/<think>[\\s\\S]*?<\\/think>/gi, '')\n  .replace(/<\\/?think>/gi, '')\n  .trim();\n\n// Qwen sometimes writes reasoning directly into message.content without tags.\n// Keep only the final-answer section when a clear transition is present.\nconst transitionPatterns = [\n  /\\n\\s*(?:final answer|answer)\\s*:\\s*/i,\n  /\\n\\s*(?:therefore|so),?\\s+(?=you|the)/i,\n];\n\nfor (const pattern of transitionPatterns) {\n  const match = answer.match(pattern);\n\n  if (match?.index !== undefined) {\n    answer = answer\n      .slice(match.index + match[0].length)\n      .trim();\n    break;\n  }\n}\n\n// Fallback for conversational reasoning openings.\nconst reasoningOpenings = [\n  'Okay, let',\n  \"Let's tackle\",\n  'The user is asking',\n  'I need to',\n  'First, I need to',\n  'Looking at Source',\n];\n\nif (reasoningOpenings.some(prefix => answer.startsWith(prefix))) {\n  const paragraphs = answer\n    .split(/\\n{2,}/)\n    .map(part => part.trim())\n    .filter(Boolean);\n\n  const finalParagraphIndex = paragraphs.findIndex(part =>\n    /^(you can|you must|you should|if you|to object|submit|send|contact)/i.test(part)\n  );\n\n  if (finalParagraphIndex >= 0) {\n    answer = paragraphs.slice(finalParagraphIndex).join('\\n\\n');\n  }\n}\n\nif (!answer) {\n  throw new Error('The final answer was empty after removing reasoning text');\n}\n\nconst uniqueSources = Array.from(\n  new Map(\n    contextData.sources.map(source => [\n      source.source_url,\n      {\n        source_id: source.source_id,\n        source_title: source.source_title,\n        source_url: source.source_url,\n      },\n    ])\n  ).values()\n);\n\nreturn {\n  json: {\n    question: contextData.question,\n    topic: contextData.topic,\n    answer,\n    sources: uniqueSources,\n  },\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        848,
+        -224
+      ],
+      "id": "fd46448d-8e22-4194-9796-635d43069f65",
+      "name": "Format Final Response"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "govguide-question",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        1328,
+        -144
+      ],
+      "id": "31e49a1f-b545-4a6d-ad7d-d0516c3455b8",
+      "name": "Webhook",
+      "webhookId": "70e20a16-bfc9-48d8-aebf-7bb642e82ae4"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "76123d29-144c-4933-a1d3-a2428460a2cc",
+              "name": "question",
+              "value": "={{ $json.body.question }}",
+              "type": "string"
+            },
+            {
+              "id": "35b47f25-d4ad-40b0-813a-cb9d2453fbbc",
+              "name": "history",
+              "value": "={{ Array.isArray($json.body?.history)   ? $json.body.history.slice(-6)   : [] }}",
+              "type": "array"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        1168,
+        80
+      ],
+      "id": "ca1efb8c-7897-4e2b-8516-d7de5bb1e2bc",
+      "name": "Normalize Webhook Question"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        880,
+        16
+      ],
+      "id": "23fd538c-1a0f-41d5-9709-e916062fdd38",
+      "name": "Respond to Webhook"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const rawQuestion = $json.question;\n\nconst history = Array.isArray($json.history)\n  ? $json.history\n  : [];\n\nif (typeof rawQuestion !== 'string') {\n  return {\n    json: {\n      ...$json,\n      question: '',\n      history,\n      valid: false,\n      status_code: 400,\n      error_code: 'INVALID_QUESTION_TYPE',\n      error: 'The request body must contain a question as text.',\n    },\n  };\n}\n\nconst question = rawQuestion.trim();\n\nif (!question) {\n  return {\n    json: {\n      ...$json,\n      question,\n      history,\n      valid: false,\n      status_code: 400,\n      error_code: 'EMPTY_QUESTION',\n      error: 'The question cannot be empty.',\n    },\n  };\n}\n\nif (question.length < 5) {\n  return {\n    json: {\n      ...$json,\n      question,\n      history,\n      valid: false,\n      status_code: 400,\n      error_code: 'QUESTION_TOO_SHORT',\n      error: 'Please provide a more complete question.',\n    },\n  };\n}\n\nif (question.length > 1000) {\n  return {\n    json: {\n      ...$json,\n      question,\n      history,\n      valid: false,\n      status_code: 400,\n      error_code: 'QUESTION_TOO_LONG',\n      error: 'The question is too long. Please limit it to 1000 characters.',\n    },\n  };\n}\n\nreturn {\n  json: {\n    ...$json,\n    question,\n    history,\n    valid: true,\n  },\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1328,
+        80
+      ],
+      "id": "aa2eb5c3-5ba5-4111-b616-2c5ab51e8db5",
+      "name": "Validate Question"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "f3dffe88-75e1-4406-95ea-5f1968488562",
+              "leftValue": "={{ $json.valid.toBoolean() }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1504,
+        80
+      ],
+      "id": "52bd4b32-5600-46bf-9cd6-da6655e3afdd",
+      "name": "Is Question Valid?"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ {\n  success: false,\n  error_code: $json.error_code,\n  error: $json.error\n} }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        1712,
+        96
+      ],
+      "id": "1308fb92-c579-4d89-8277-dfef20e88727",
+      "name": "Respond Validation Error"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "f065e116-66b6-4fb4-908b-e4107ffd6100",
+              "leftValue": "={{ $json.topic !== null && $json.topic !== undefined && $json.topic !== '' }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -304,
+        32
+      ],
+      "id": "a8a3a904-b62b-4a1b-b998-d9cfbd27b1ae",
+      "name": "Is Topic Known?"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ {\n  success: false,\n  error_code: \"UNSUPPORTED_TOPIC\",\n  error: \"I can currently answer questions about income changes, definitive calculations, repayments, payment arrangements, objections, and review requests.\",\n  question: $json.question\n} }}",
+        "options": {
+          "responseCode": 422
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        0,
+        112
+      ],
+      "id": "3a6a8fe5-365e-42c3-9f41-6dc709b771ce",
+      "name": "Respond Unknown Topic"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "b0d03bb2-0314-4af6-9d2e-d9c4580dcf67",
+              "leftValue": "={{ $json.source_id !== undefined && $json.source_id !== null && $json.source_id !== '' }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        0,
+        -16
+      ],
+      "id": "e551a144-df17-497c-bdfb-3874253b3b87",
+      "name": "Were Results Found?"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ {\n  success: false,\n  error_code: \"NO_RELEVANT_RESULTS\",\n  error: \"I could not find enough relevant information in the official sources to answer this question.\",\n  question: $('Classify Topic').first().json.question,\n  topic: $('Classify Topic').first().json.topic\n} }}",
+        "options": {
+          "responseCode": 404
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        240,
+        0
+      ],
+      "id": "11fcacc9-8816-46de-9b44-8f8e5b87cb12",
+      "name": "Respond No Results"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "6ed36e45-9d96-4737-b195-fd4cd56eda45",
+              "leftValue": "={{    typeof $json.message?.content === 'string' &&   $json.message.content.trim().length > 0 }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        592,
+        -208
+      ],
+      "id": "d1a63a57-c831-4d4c-b351-62fa95128672",
+      "name": "Did Ollama Return an Answer?"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ {\n  success: false,\n  error_code: \"ANSWER_GENERATION_FAILED\",\n  error: \"The answer service is temporarily unavailable. Please try again.\",\n  question: $('Build Answer Context').first().json.question,\n  topic: $('Build Answer Context').first().json.topic\n} }}",
+        "options": {
+          "responseCode": 503
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        624,
+        48
+      ],
+      "id": "968e6244-4e30-4b3e-8eba-da2966432199",
+      "name": "Respond Ollama Error"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const finalResult = $json;\nconst testCase = $('Test Question').first().json;\n\nconst actualTopic = finalResult.topic ?? null;\nconst actualSourceIds = Array.isArray(finalResult.sources)\n  ? finalResult.sources.map(source => source.source_id)\n  : [];\n\nconst topicPassed = actualTopic === testCase.expected_topic;\nconst sourcePassed = actualSourceIds.includes(testCase.expected_source_id);\n\nreturn {\n  json: {\n    test_case_id: testCase.test_case_id,\n    question: testCase.question,\n\n    expected_topic: testCase.expected_topic,\n    actual_topic: actualTopic,\n    topic_passed: topicPassed,\n\n    expected_source_id: testCase.expected_source_id,\n    actual_source_ids: actualSourceIds,\n    source_passed: sourcePassed,\n\n    overall_passed: topicPassed && sourcePassed,\n\n    answer: finalResult.answer,\n  },\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1104,
+        -224
+      ],
+      "id": "89326887-4786-4dbc-89fd-2b803e06688a",
+      "name": "Evaluate Result(Manual Test Only)",
+      "disabled": true
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "Test Question",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Test Question": {
+      "main": [
+        [
+          {
+            "node": "Classify Topic",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Query Embedding — Ollama": {
+      "main": [
+        [
+          {
+            "node": "Search Supabase Vector DB",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Classify Topic": {
+      "main": [
+        [
+          {
+            "node": "Is Topic Known?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search Supabase Vector DB": {
+      "main": [
+        [
+          {
+            "node": "Were Results Found?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Answer Context": {
+      "main": [
+        [
+          {
+            "node": "Generate Final Answer — Ollama",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Final Answer — Ollama": {
+      "main": [
+        [
+          {
+            "node": "Did Ollama Return an Answer?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Normalize Webhook Question",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Webhook Question": {
+      "main": [
+        [
+          {
+            "node": "Validate Question",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Final Response": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Evaluate Result(Manual Test Only)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Question": {
+      "main": [
+        [
+          {
+            "node": "Is Question Valid?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Question Valid?": {
+      "main": [
+        [
+          {
+            "node": "Classify Topic",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond Validation Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Topic Known?": {
+      "main": [
+        [
+          {
+            "node": "Generate Query Embedding — Ollama",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond Unknown Topic",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Were Results Found?": {
+      "main": [
+        [
+          {
+            "node": "Build Answer Context",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond No Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Did Ollama Return an Answer?": {
+      "main": [
+        [
+          {
+            "node": "Format Final Response",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond Ollama Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "5936c8a4-d498-480a-beb2-7eeea36e777d",
+  "meta": {
+    "instanceId": "6d9c4cc93006621a58cb42a75f3347c06094fae1640fbd13023a9819be5d81e7"
+  },
+  "nodeGroups": [],
+  "id": "bO5zp2GKoAeffhbJ",
+  "tags": []
+}
