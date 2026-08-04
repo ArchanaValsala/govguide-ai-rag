@@ -6,8 +6,6 @@ It combines n8n, Ollama, Supabase PostgreSQL, pgvector, and a browser-based chat
 
 ## Demo
 
-Add your screenshots here:
-
 <img width="1102" height="740" alt="image" src="https://github.com/user-attachments/assets/c9ad118c-cc91-4500-a57f-332e22f9533b" />
 
 <img width="1102" height="740" alt="image" src="https://github.com/user-attachments/assets/8e3ba036-0502-4562-93b5-1cb309561252" />
