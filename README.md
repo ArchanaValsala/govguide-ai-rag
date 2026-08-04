@@ -93,7 +93,7 @@ Webhook
 → Format Final Response
 → Respond to Webhook
 ```
-<img width="1141" height="394" alt="image" src="https://github.com/user-attachments/assets/3ac2f196-8a37-4c9e-958c-7ecd9850b9aa" />
+<img width="1141" height="321" alt="image" src="https://github.com/user-attachments/assets/c6a07009-ba72-441c-b33c-75bec4774ff7" />
 
 The system uses two retrieval stages:
 
