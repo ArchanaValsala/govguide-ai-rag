@@ -353,35 +353,26 @@ How can I object to my definitive calculation?
 What can I do if I missed the objection deadline?
 ```
 
-## Security Notes
-
-- do not commit Supabase service-role keys
-- do not commit passwords or bearer tokens
-- keep credentials inside n8n or environment variables
-- do not request DigiD credentials
-- do not store real personal tax data
-- do not expose internal n8n error messages
-
 ## Current Limitations
 
-- only six topics are supported
-- the classifier is rule-based
-- source coverage is limited
-- conversation memory resets on refresh
-- no user authentication is implemented
-- no production deployment configuration is included
-- responses may occasionally be less concise than intended
+- Only six topics are supported
+- The classifier is rule-based
+- Source coverage is limited
+- Conversation memory resets on refresh
+- No user authentication is implemented
+- No production deployment configuration is included
+- Responses may occasionally be less concise than intended
 
 ## Future Improvements
 
-- add more official sources and topics
-- add persistent conversation sessions
-- add automated source refresh and verification
-- add automated retrieval evaluation
-- add multilingual answers
-- add authentication and rate limiting
-- deploy the frontend and workflows
-- add monitoring and structured logs
+- Add more official sources and topics
+- Add persistent conversation sessions
+- Add automated source refresh and verification
+- Add automated retrieval evaluation
+- Add multilingual answers
+- Add authentication and rate limiting
+- Deploy the frontend and workflows
+- Add monitoring and structured logs
 
 ## Documentation
 
