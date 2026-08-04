@@ -9,7 +9,7 @@ It combines n8n, Ollama, Supabase PostgreSQL, pgvector, and a browser-based chat
 Watch the full project demo on Google Drive
 https://drive.google.com/file/d/1p5v70ulnZIuUx_WdWryy7KwFfvoTHLiV/view?usp=sharing
 
-## Demo
+## Demo - Final Webpage
 
 <img width="1102" height="740" alt="image" src="https://github.com/user-attachments/assets/c9ad118c-cc91-4500-a57f-332e22f9533b" />
 
@@ -79,6 +79,22 @@ n8n Retrieval Workflow
         ▼
 Browser Chat Interface
 ```
+
+## Ingestion Workflow
+
+The ingestion workflow prepares the official source documents for retrieval by parsing metadata, splitting the content into chunks, generating embeddings with Ollama, and storing the vectors in Supabase PostgreSQL with pgvector.
+
+<img width="1413" height="536" alt="image" src="https://github.com/user-attachments/assets/4e39fcae-24c2-46da-aa75-d1d1f0873f3a" />
+
+The workflow performs these main steps:
+
+```text
+Load Official Markdown Sources
+→ Parse Document Metadata
+→ Split Documents into Chunks
+→ Add Embedding Prefix
+→ Generate Embeddings with Ollama
+→ Store Chunks and Vectors in Supabase
 
 ## Retrieval Workflow
 
