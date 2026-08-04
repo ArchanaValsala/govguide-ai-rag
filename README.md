@@ -1,6 +1,6 @@
 # GovGuide AI
 
-GovGuide AI is a local Retrieval-Augmented Generation application (personal project) that answers questions about Dutch allowances using curated official information from Dienst Toeslagen.
+GovGuide AI is a local Retrieval-Augmented Generation application (personal demo project) that answers questions about Dutch allowances using curated official information from Dienst Toeslagen.
 
 It combines n8n, Ollama, Supabase PostgreSQL, pgvector, and a browser-based chat interface.
 
