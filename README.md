@@ -1,33 +1,32 @@
 # GovGuide AI
 
-GovGuide AI is a local Retrieval-Augmented Generation application (personal demo project) that answers questions about Dutch allowances using curated official information from Dienst Toeslagen.
+GovGuide AI is a local Retrieval-Augmented Generation application that answers questions about Dutch allowances using curated official information from Dienst Toeslagen.
 
-It combines n8n, Ollama, Supabase PostgreSQL, pgvector, and a browser-based chat interface.
+It combines n8n, Ollama, Supabase PostgreSQL, pgvector, and a browser-based chat interface to retrieve relevant source content and generate grounded answers.
 
 ## 🎥 Demo Video
 
-Watch the full project demo on Google Drive
-https://drive.google.com/file/d/1p5v70ulnZIuUx_WdWryy7KwFfvoTHLiV/view?usp=sharing
+[Watch the full project demo on Google Drive](https://drive.google.com/file/d/1p5v70ulnZIuUx_WdWryy7KwFfvoTHLiV/view?usp=sharing)
 
-## Demo - Final Webpage
-
+## Final Webpage Demo
+### Initial Chat Interface
 <img width="1102" height="740" alt="image" src="https://github.com/user-attachments/assets/c9ad118c-cc91-4500-a57f-332e22f9533b" />
-
+### Grounded Answer with Official Source
 <img width="1102" height="740" alt="image" src="https://github.com/user-attachments/assets/8e3ba036-0502-4562-93b5-1cb309561252" />
-
+### Follow-up Question
 <img width="1102" height="740" alt="image" src="https://github.com/user-attachments/assets/7f2da2cf-02f0-40b6-a7f7-99aaedbbdb23" />
 
 ## Features
 
-- grounded answers from official source documents
-- local embeddings and answer generation with Ollama
-- vector search with Supabase and pgvector
-- rule-based topic classification
-- browser-based chat interface
-- follow-up question support
-- official source links in responses
-- validation and structured error handling
-- no external language-model API required
+- Grounded answers from official source documents
+- Local embeddings and answer generation with Ollama
+- Vector search with Supabase and pgvector
+- Rule-based topic classification
+- Browser-based chat interface
+- Follow-up question support
+- Official source links in responses
+- Validation and structured error handling
+- No external language-model API required
 
 ## Supported Topics
 
@@ -84,8 +83,6 @@ Browser Chat Interface
 
 The ingestion workflow prepares the official source documents for retrieval by parsing metadata, splitting the content into chunks, generating embeddings with Ollama, and storing the vectors in Supabase PostgreSQL with pgvector.
 
-<img width="1413" height="536" alt="image" src="https://github.com/user-attachments/assets/4e39fcae-24c2-46da-aa75-d1d1f0873f3a" />
-
 The workflow performs these main steps:
 
 ```text
@@ -95,6 +92,9 @@ Load Official Markdown Sources
 → Add Embedding Prefix
 → Generate Embeddings with Ollama
 → Store Chunks and Vectors in Supabase
+```
+The screenshot below shows the complete ingestion workflow implemented in n8n.
+<img width="1413" height="536" alt="image" src="https://github.com/user-attachments/assets/4e39fcae-24c2-46da-aa75-d1d1f0873f3a" />
 
 ## Retrieval Workflow
 
@@ -114,6 +114,7 @@ Webhook
 → Format Final Response
 → Respond to Webhook
 ```
+The screenshot below shows the complete retrieval and response-generation workflow in n8n.
 <img width="1141" height="321" alt="image" src="https://github.com/user-attachments/assets/c6a07009-ba72-441c-b33c-75bec4774ff7" />
 
 The system uses two retrieval stages:
@@ -145,7 +146,7 @@ Conversation history is used only to understand context. Factual answers must st
 
 Conversation memory resets when the page is refreshed.
 
-## Models
+## Model Configuration
 
 ### Embedding model
 
@@ -257,10 +258,6 @@ govguide-ai-rag/
 ├── workflows/
 │   ├── govguide-ingestion-workflow.json
 │   └── govguide-retrieval-workflow.json
-│
-├── screenshots/
-│   ├── chat-main.png
-│   └── chat-follow-up.png
 │
 ├── README.md
 └── .gitignore
